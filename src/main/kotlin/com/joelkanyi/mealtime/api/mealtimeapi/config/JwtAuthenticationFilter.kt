@@ -24,24 +24,39 @@ class JwtAuthenticationFilter(
     ) {
         val authHeader = request.getHeader("Authorization")
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        // Check if header is null, doesn't start with Bearer, or is "Bearer null"
+        if (authHeader == null || !authHeader.startsWith("Bearer ") || authHeader == "Bearer null") {
             filterChain.doFilter(request, response)
             return
         }
 
         val jwtToken: String = authHeader.substring(7)
-        val userEmail: String = JwtService.extractUserName(jwtToken)
-
-        if (userEmail.isNotEmpty() && SecurityContextHolder.getContext().authentication == null) {
-            val userDetails = this.userDetailsService.loadUserByUsername(userEmail)
-            if (jwtService.isTokenValid(jwtToken, userDetails)) {
-                val authToken = UsernamePasswordAuthenticationToken(
-                    userDetails, null, userDetails.authorities
-                )
-                authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
-                SecurityContextHolder.getContext().authentication = authToken
-            }
+        
+        // Additional check to ensure token is not empty or "null" string
+        if (jwtToken.isBlank() || jwtToken == "null") {
+            filterChain.doFilter(request, response)
+            return
         }
+
+        try {
+            val userEmail: String = jwtService.extractUserName(jwtToken)
+
+            if (userEmail.isNotEmpty() && SecurityContextHolder.getContext().authentication == null) {
+                val userDetails = this.userDetailsService.loadUserByUsername(userEmail)
+                if (jwtService.isTokenValid(jwtToken, userDetails)) {
+                    val authToken = UsernamePasswordAuthenticationToken(
+                        userDetails, null, userDetails.authorities
+                    )
+                    authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
+                    SecurityContextHolder.getContext().authentication = authToken
+                }
+            }
+        } catch (e: Exception) {
+            // Log the exception if needed, but don't break the filter chain
+            // This allows the request to continue to the controller where it will be handled appropriately
+            logger.debug("JWT token validation failed: ${e.message}")
+        }
+        
         filterChain.doFilter(request, response)
     }
 }
