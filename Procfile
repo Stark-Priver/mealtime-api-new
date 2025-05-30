@@ -1,0 +1,1 @@
+web: java -jar -Dserver.port=$PORT build/libs/mealtime-api-0.0.1.jar
